@@ -21,3 +21,7 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Local SQLite database used for development / the test suite
+/database/*.sqlite
+/database/*.sqlite-journal

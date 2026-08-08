@@ -12,13 +12,9 @@ use App\Http\Controllers\Api\NearbyController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\QrController;
+use App\Http\Controllers\Api\ReferenceDataController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\UserController;
-use App\Http\Resources\InterestResource;
-use App\Http\Resources\SkillResource;
-use App\Models\Interest;
-use App\Models\Skill;
-use App\Support\ApiResponse;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -53,12 +49,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::put('profile/privacy', [ProfileController::class, 'updatePrivacy']);
 
     // Reference data the onboarding screens need to render their pickers.
-    Route::get('skills', fn () => ApiResponse::success(
-        SkillResource::collection(Skill::orderBy('name')->get())->resolve(request())
-    ));
-    Route::get('interests', fn () => ApiResponse::success(
-        InterestResource::collection(Interest::orderBy('name')->get())->resolve(request())
-    ));
+    Route::get('skills', [ReferenceDataController::class, 'skills']);
+    Route::get('interests', [ReferenceDataController::class, 'interests']);
 
     // ------------------------------------------------------- nearby / discovery
     Route::put('nearby/discoverability', [NearbyController::class, 'updateDiscoverability']);
