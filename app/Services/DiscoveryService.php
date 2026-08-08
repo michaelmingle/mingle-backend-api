@@ -59,9 +59,16 @@ class DiscoveryService
     }
 
     /**
-     * Attendees of an event who opted into networking. Same privacy rules as
-     * /nearby: blocked users in either direction are excluded, and users who
-     * turned their own discoverability off are not surfaced.
+     * Attendees of an event who opted into networking.
+     *
+     * `event_attendees.is_networking_enabled` is the per-event discoverability
+     * switch, so it -- not the global `profiles.is_discoverable` flag -- gates
+     * this list: a user can be invisible on the city-wide /nearby feed while
+     * still being open to meeting people in the room. Everything else matches
+     * /nearby: blocked users in either direction are excluded, suspended and
+     * banned accounts are excluded, and contact details stay behind each
+     * subject's own sharing preferences. Pass $requireDiscoverable to also
+     * demand the global flag.
      *
      * @param  array<string, mixed>  $filters
      */
@@ -70,7 +77,7 @@ class DiscoveryService
         Event $event,
         array $filters = [],
         ?int $perPage = null,
-        bool $requireDiscoverable = true,
+        bool $requireDiscoverable = false,
     ): LengthAwarePaginator {
         $query = User::query()
             ->select('users.*')
