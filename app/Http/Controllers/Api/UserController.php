@@ -7,6 +7,7 @@ use App\Http\Requests\Connections\StoreConnectionRequestRequest;
 use App\Http\Requests\Safety\ReportUserRequest;
 use App\Http\Resources\ConnectionRequestResource;
 use App\Http\Resources\PublicUserResource;
+use App\Models\ConnectionRequest;
 use App\Models\ProfileView;
 use App\Models\Report;
 use App\Models\User;
@@ -51,12 +52,12 @@ class UserController extends Controller
             ->sharedInterests($sharedNames)
             ->distance($distance)
             ->pendingRequest(
-                \App\Models\ConnectionRequest::query()
+                ConnectionRequest::query()
                     ->pendingBetween($viewer->id, $user->id)
                     ->exists()
             );
 
-        return $this->ok($resource->toArray($request));
+        return $this->ok($resource->resolve($request));
     }
 
     public function connect(StoreConnectionRequestRequest $request, User $user): JsonResponse

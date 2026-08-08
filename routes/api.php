@@ -54,10 +54,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     // Reference data the onboarding screens need to render their pickers.
     Route::get('skills', fn () => ApiResponse::success(
-        SkillResource::collection(Skill::orderBy('name')->get())->toArray(request())
+        SkillResource::collection(Skill::orderBy('name')->get())->resolve(request())
     ));
     Route::get('interests', fn () => ApiResponse::success(
-        InterestResource::collection(Interest::orderBy('name')->get())->toArray(request())
+        InterestResource::collection(Interest::orderBy('name')->get())->resolve(request())
     ));
 
     // ------------------------------------------------------- nearby / discovery

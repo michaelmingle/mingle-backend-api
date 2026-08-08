@@ -38,7 +38,7 @@ class AuthController extends Controller
         });
 
         return $this->created([
-            'user' => (new UserResource($user->load(['profile', 'contactPreferences', 'skills', 'interests'])))->toArray($request),
+            'user' => (new UserResource($user->load(['profile', 'contactPreferences', 'skills', 'interests'])))->resolve($request),
             'token' => $this->issueToken($user, $request->input('device_name')),
         ], 'Account created.');
     }
@@ -66,7 +66,7 @@ class AuthController extends Controller
         $user->touchLastActive();
 
         return $this->ok([
-            'user' => (new UserResource($user->load(['profile', 'contactPreferences', 'skills', 'interests'])))->toArray($request),
+            'user' => (new UserResource($user->load(['profile', 'contactPreferences', 'skills', 'interests'])))->resolve($request),
             'token' => $this->issueToken($user, $request->input('device_name')),
         ], 'Signed in.');
     }

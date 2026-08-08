@@ -16,7 +16,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * explicitly rather than inferred inside the resource so list endpoints can
  * resolve connectedness once, in bulk, instead of per row.
  *
- * @mixin \App\Models\User
+ * @mixin User
  */
 class PublicUserResource extends JsonResource
 {
@@ -28,6 +28,21 @@ class PublicUserResource extends JsonResource
     private array $sharedInterests = [];
 
     private ?bool $hasPendingRequest = null;
+
+    private bool $includeContact = true;
+
+    /**
+     * Drops the contact block entirely. List surfaces (/nearby, event
+     * attendees, search) use this: proximity feeds broadcast to strangers, so
+     * contact details are only ever revealed on a deliberate profile view even
+     * when the subject set visibility to "everyone".
+     */
+    public function withoutContact(): static
+    {
+        $this->includeContact = false;
+
+        return $this;
+    }
 
     public function connected(bool $isConnected): static
     {
@@ -86,9 +101,12 @@ class PublicUserResource extends JsonResource
             'shared_interests' => $this->sharedInterests,
             'distance_meters' => $this->visibleDistance($prefs),
             'is_connected' => $this->isConnected,
-            'contact' => $this->contactPayload($user, $prefs),
             'last_active_at' => $user->last_active_at?->toIso8601String(),
         ];
+
+        if ($this->includeContact) {
+            $payload['contact'] = $this->contactPayload($user, $prefs);
+        }
 
         if ($user->relationLoaded('skills')) {
             $payload['skills'] = SkillResource::collection($user->skills);

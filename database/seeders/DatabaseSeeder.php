@@ -2,22 +2,21 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
+/**
+ * Production-safe reference data only. Demo users, events and connections live
+ * in DemoSeeder and are never pulled in here -- run `db:seed --class=DemoSeeder`
+ * explicitly (it refuses to run in production).
+ */
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            SkillSeeder::class,
+            InterestSeeder::class,
+            PlanSeeder::class,
         ]);
     }
 }

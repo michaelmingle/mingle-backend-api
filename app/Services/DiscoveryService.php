@@ -50,7 +50,7 @@ class DiscoveryService
             ->whereNotNull('profiles.latitude')
             ->whereNotNull('profiles.longitude')
             ->selectRaw("$distance as distance_meters")
-            ->whereRaw("$distance <= ?", [$radiusMeters]);
+            ->whereRaw($distance.' <= '.Profile::numericLiteral($radiusMeters));
 
         $this->applyFilters($query, $filters);
         $this->applySort($query, $sort, $distance);
@@ -106,6 +106,10 @@ class DiscoveryService
      * interests, connectedness, pending requests) resolved in bulk -- one query
      * per concern rather than one per row.
      *
+     * Contact details are always omitted here: list surfaces are broadcast to
+     * strangers, so phone/email/WhatsApp are only ever revealed on a deliberate
+     * profile view.
+     *
      * @param  EloquentCollection<int, User>|Collection<int, User>  $users
      * @return array<int, array<string, mixed>>
      */
@@ -120,12 +124,13 @@ class DiscoveryService
         $pendingIds = $includePendingState ? $this->pendingRequestIds($viewer, $ids) : [];
         $viewerInterests = $viewer->interests()->pluck('interests.name', 'interests.id');
 
-        return $users->map(function (User $user) use ($viewer, $connectedIds, $pendingIds, $viewerInterests, $includePendingState) {
+        return $users->map(function (User $user) use ($connectedIds, $pendingIds, $viewerInterests, $includePendingState) {
             $shared = $user->relationLoaded('interests')
                 ? $user->interests->pluck('name', 'id')->intersectByKeys($viewerInterests)->values()->all()
                 : [];
 
             $resource = (new PublicUserResource($user))
+                ->withoutContact()
                 ->connected(in_array($user->id, $connectedIds, true))
                 ->sharedInterests($shared)
                 ->distance($user->distance_meters !== null ? (float) $user->distance_meters : null);
@@ -134,7 +139,7 @@ class DiscoveryService
                 $resource->pendingRequest(in_array($user->id, $pendingIds, true));
             }
 
-            return $resource->toArray(request());
+            return $resource->resolve(request());
         })->all();
     }
 
@@ -256,13 +261,13 @@ class DiscoveryService
      */
     private function connectedIds(User $viewer, array $candidateIds): array
     {
-        return Connection::query()
+        $connected = Connection::query()
             ->forUser($viewer->id)
             ->get(['user_one_id', 'user_two_id'])
             ->map(fn (Connection $c) => $c->otherUserId($viewer->id))
-            ->intersect($candidateIds)
-            ->values()
             ->all();
+
+        return array_values(array_intersect($connected, $candidateIds));
     }
 
     /**
@@ -271,15 +276,15 @@ class DiscoveryService
      */
     private function pendingRequestIds(User $viewer, array $candidateIds): array
     {
-        return ConnectionRequest::query()
+        $pending = ConnectionRequest::query()
             ->pending()
             ->where(function (Builder $q) use ($viewer) {
                 $q->where('sender_id', $viewer->id)->orWhere('receiver_id', $viewer->id);
             })
             ->get(['sender_id', 'receiver_id'])
             ->map(fn (ConnectionRequest $r) => $r->sender_id === $viewer->id ? $r->receiver_id : $r->sender_id)
-            ->intersect($candidateIds)
-            ->values()
             ->all();
+
+        return array_values(array_intersect($pending, $candidateIds));
     }
 }

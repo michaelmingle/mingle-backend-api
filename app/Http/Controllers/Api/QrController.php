@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Qr\ScanQrRequest;
 use App\Http\Resources\PublicUserResource;
+use App\Models\ConnectionRequest;
 use App\Models\QrToken;
 use App\Notifications\QrConnection;
 use Illuminate\Http\JsonResponse;
@@ -85,9 +86,9 @@ class QrController extends Controller
             ->connected($viewer->isConnectedWith($subject))
             ->sharedInterests($sharedNames)
             ->pendingRequest(
-                \App\Models\ConnectionRequest::query()->pendingBetween($viewer->id, $subject->id)->exists()
+                ConnectionRequest::query()->pendingBetween($viewer->id, $subject->id)->exists()
             );
 
-        return $this->ok($resource->toArray($request));
+        return $this->ok($resource->resolve($request));
     }
 }

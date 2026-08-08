@@ -20,7 +20,7 @@ class NotificationController extends Controller
         $results = $query->paginate($this->perPage());
 
         return $this->ok([
-            'items' => NotificationResource::collection($results->getCollection())->toArray($request),
+            'items' => NotificationResource::collection($results->getCollection())->resolve($request),
             'unread_count' => $request->user()->unreadNotifications()->count(),
             'meta' => [
                 'current_page' => $results->currentPage(),

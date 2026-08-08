@@ -38,8 +38,8 @@ class SearchController extends Controller
                     $viewer,
                     includePendingState: true,
                 ),
-                'events' => EventResource::collection($this->eventsQuery($viewer, $term)->limit(5)->get())->toArray($request),
-                'skills' => SkillResource::collection($this->skillsQuery($term)->limit(5)->get())->toArray($request),
+                'events' => EventResource::collection($this->eventsQuery($viewer, $term)->limit(5)->get())->resolve($request),
+                'skills' => SkillResource::collection($this->skillsQuery($term)->limit(5)->get())->resolve($request),
             ]);
         }
 

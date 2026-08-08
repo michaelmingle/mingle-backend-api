@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\ContactSharingPreference;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,7 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Only ever returned to the owning user -- it describes who may see their
  * contact details, so it is never embedded in another user's profile payload.
  *
- * @mixin \App\Models\ContactSharingPreference
+ * @mixin ContactSharingPreference
  */
 class ContactPreferencesResource extends JsonResource
 {

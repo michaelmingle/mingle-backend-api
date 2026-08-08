@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Pagination\AbstractPaginator;
 
@@ -78,10 +79,15 @@ class ApiResponse
             return null;
         }
 
-        if (is_object($data) && method_exists($data, 'toArray') && ! is_array($data)) {
-            $resolved = $data->toArray(request());
+        // resolve() rather than toArray(): it is what strips nested
+        // `whenLoaded()` placeholders. Calling toArray() directly leaves
+        // MissingValue objects in the payload and blows up on encode.
+        if ($data instanceof JsonResource) {
+            return $data->resolve(request());
+        }
 
-            return $resolved;
+        if (is_object($data) && method_exists($data, 'toArray') && ! is_array($data)) {
+            return $data->toArray(request());
         }
 
         return $data;

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -10,7 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * here because the viewer *is* the subject; other people's profiles go through
  * PublicUserResource, which honours contact_sharing_preferences.
  *
- * @mixin \App\Models\User
+ * @mixin User
  */
 class UserResource extends JsonResource
 {

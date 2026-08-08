@@ -126,13 +126,27 @@ class Profile extends Model
             ->whereNotNull('profiles.latitude')
             ->whereNotNull('profiles.longitude')
             ->withDistance($latitude, $longitude)
-            ->whereRaw("$expression <= ?", [$radiusKm * 1000])
+            ->whereRaw($expression.' <= '.self::numericLiteral($radiusKm * 1000))
             ->orderByRaw("$expression asc");
     }
 
     public function scopeDiscoverable(Builder $query): Builder
     {
         return $query->where('profiles.is_discoverable', true);
+    }
+
+    /**
+     * Renders a number as a plain SQL numeric literal.
+     *
+     * Comparing the distance expression against a *bound* float breaks on
+     * SQLite: PDO sends floats as strings, and SQLite's affinity rules then
+     * compare REAL against TEXT, where every number sorts before every string --
+     * so `199219 <= '10000.0'` is true and the radius filter matches everything.
+     * Casting to float first keeps this injection-safe.
+     */
+    public static function numericLiteral(float|int $value): string
+    {
+        return rtrim(rtrim(sprintf('%.6F', (float) $value), '0'), '.') ?: '0';
     }
 
     // ------------------------------------------------------------------ helpers

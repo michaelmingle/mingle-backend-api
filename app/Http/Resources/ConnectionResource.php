@@ -11,7 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * `user` key is the *other* participant, and `note` is the viewer's own private
  * note (never the counterpart's).
  *
- * @mixin \App\Models\Connection
+ * @mixin Connection
  */
 class ConnectionResource extends JsonResource
 {
@@ -35,7 +35,7 @@ class ConnectionResource extends JsonResource
         return [
             'id' => $connection->id,
             'user' => $other
-                ? (new PublicUserResource($other))->connected(true)->toArray($request)
+                ? (new PublicUserResource($other))->connected(true)->resolve($request)
                 : null,
             'is_favorite' => $isFavorite,
             'note' => $note?->note,

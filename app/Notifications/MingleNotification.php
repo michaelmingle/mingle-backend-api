@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Contracts\PushNotifier;
+use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
@@ -51,7 +52,7 @@ abstract class MingleNotification extends Notification
     /** @param  array<string, mixed>  $payload */
     private function push(object $notifiable, array $payload): void
     {
-        if (! config('mingle.push.enabled') || ! $notifiable instanceof \App\Models\User) {
+        if (! config('mingle.push.enabled') || ! $notifiable instanceof User) {
             return;
         }
 

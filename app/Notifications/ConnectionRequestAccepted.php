@@ -7,8 +7,12 @@ use App\Models\User;
 
 class ConnectionRequestAccepted extends MingleNotification
 {
+    /**
+     * Named `userConnection` rather than `connection`: Notification's Queueable
+     * trait already owns a `$connection` property (the queue connection).
+     */
     public function __construct(
-        public readonly Connection $connection,
+        public readonly Connection $userConnection,
         public readonly User $acceptedBy,
     ) {}
 
@@ -30,10 +34,10 @@ class ConnectionRequestAccepted extends MingleNotification
     public function payload(object $notifiable): array
     {
         return [
-            'connection_id' => $this->connection->id,
+            'connection_id' => $this->userConnection->id,
             'user_id' => $this->acceptedBy->id,
             'user_name' => $this->acceptedBy->name,
-            'event_id' => $this->connection->event_id,
+            'event_id' => $this->userConnection->event_id,
         ];
     }
 }

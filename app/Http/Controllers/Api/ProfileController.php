@@ -68,7 +68,7 @@ class ProfileController extends Controller
         $this->profiles->bootstrapFor($user)->profile->recalculateCompletion();
 
         return $this->ok(
-            ['skills' => SkillResource::collection($user->load('skills')->skills)->toArray($request)],
+            ['skills' => SkillResource::collection($user->load('skills')->skills)->resolve($request)],
             'Skills updated.'
         );
     }
@@ -81,7 +81,7 @@ class ProfileController extends Controller
         $this->profiles->bootstrapFor($user)->profile->recalculateCompletion();
 
         return $this->ok(
-            ['interests' => InterestResource::collection($user->load('interests')->interests)->toArray($request)],
+            ['interests' => InterestResource::collection($user->load('interests')->interests)->resolve($request)],
             'Interests updated.'
         );
     }
