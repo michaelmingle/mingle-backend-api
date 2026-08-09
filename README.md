@@ -64,7 +64,7 @@ Beyond the standard Laravel keys, `config/mingle.php` reads:
 | `MINGLE_DEFAULT_DISCOVERY_RADIUS` | Radius (metres) given to new profiles |
 | `MINGLE_MAX_DISCOVERY_RADIUS` | Hard cap a client may request |
 | `MINGLE_QR_DEEP_LINK_BASE` | Prefix for personal QR deep links |
-| `FCM_ENABLED` / `FCM_SERVER_KEY` | Push config — see *Not implemented* below |
+| `FCM_ENABLED` / `FCM_PROJECT_ID` / `FCM_CREDENTIALS_PATH` / `FCM_CREDENTIALS_JSON` | Push config — see *Push notifications* below |
 | `PAYMENTS_DRIVER` | Payment config — see *Not implemented* below |
 
 ## Tests
@@ -79,12 +79,15 @@ production configuration is unaffected. All migrations are written to be portabl
 between the two — no MySQL-only column types, and the haversine SQL uses only
 `sin`/`cos`/`asin`/`sqrt`, which both engines provide.
 
-87 feature and unit tests cover registration and login, profile updates and the
+105 feature and unit tests cover registration and login, profile updates and the
 completion percentage, the discoverability toggle, nearby inclusion/exclusion
 rules (radius, discoverability flag, blocks, suspended accounts), the
 request → accept → connections-list flow, event creation/join/attendee lists and
 their `is_networking_enabled` gate, block-prevents-connect, QR issue/rotate/scan,
-search, notifications and the admin surface.
+search, notifications, the admin surface, device registration, the FCM driver
+(against a faked HTTP client and a stubbed token provider, so no real Google
+credentials or network access are needed to run the suite), the
+enabled+configured push binding logic, and the two scheduled commands.
 
 ---
 
@@ -141,6 +144,9 @@ plus `GET skills` and `GET interests` for onboarding pickers
 
 **Notifications** — `GET notifications`, `PUT notifications/{id}/read`,
 `PUT notifications/read-all`
+
+**Devices** — `POST devices` (register/reassign a push token),
+`POST devices/unregister`
 
 **Account** — `DELETE account`
 
@@ -204,18 +210,79 @@ where every number sorts before every string, silently matching every row.
 
 ---
 
+## Push notifications (FCM)
+
+Every `MingleNotification` subclass writes to the `notifications` table (so the
+in-app bell always works) and, in the same call, hands off to
+`App\Contracts\PushNotifier`. That interface has two implementations:
+
+- **`NullPushNotifier`** — the default. Logs the intent at debug level and
+  returns `false`. Always bound unless push is fully configured (below), so a
+  half-set-up environment can never throw mid-request over a push failure.
+- **`FcmPushNotifier`** — real delivery via FCM's **HTTP v1 API** (not the
+  deprecated legacy server-key API), authenticated as a Firebase service
+  account rather than a static key.
+
+`AppServiceProvider` binds `FcmPushNotifier` only when **all** of the
+following are true; anything short of that falls back to the null driver:
+
+1. `FCM_ENABLED=true`
+2. `FCM_PROJECT_ID` is set
+3. Either `FCM_CREDENTIALS_JSON` (the service account JSON inline — handy
+   where there's no persistent disk) or `FCM_CREDENTIALS_PATH` (a path to the
+   JSON file, default `storage/app/firebase-service-account.json`) resolves to
+   real credentials. `credentials_json` wins if both are set.
+
+### Turning it on
+
+1. In the Firebase console: Project settings → Service accounts → Generate
+   new private key. That downloads the JSON file.
+2. Either drop it at `storage/app/firebase-service-account.json`, or set
+   `FCM_CREDENTIALS_JSON` to its contents, and set `FCM_PROJECT_ID` to the
+   Firebase project id and `FCM_ENABLED=true`.
+3. The mobile client registers its token via `POST /api/devices
+   {token, platform}` after login (and ideally on token-refresh), and should
+   call `POST /api/devices/unregister {token}` on logout so a shared device
+   doesn't keep receiving another account's pushes.
+4. `GoogleAccessTokenProvider` mints and caches an OAuth2 access token from
+   the service account (cached ~50 minutes; real tokens last 60) and
+   `FcmPushNotifier` posts to
+   `https://fcm.googleapis.com/v1/projects/{project}/messages:send` once per
+   registered device. A token FCM reports as `UNREGISTERED` is deleted from
+   `device_tokens`; any other failure is logged and skipped without failing
+   the request that triggered the notification.
+
+### Scheduled notifications
+
+Two commands, registered in `routes/console.php`, need a real scheduler tick
+to fire — `php artisan schedule:work` in development, or a single
+`* * * * * php artisan schedule:run` cron entry in production:
+
+- **`events:send-reminders`** (hourly) — notifies attendees with
+  `is_networking_enabled = true` for events starting in the next ~23–25
+  hours. `events.reminder_sent_at` makes each event eligible for exactly one
+  reminder regardless of how many times the hourly tick lands inside that
+  window.
+- **`networking:send-suggestions`** (daily at 09:00) — for each discoverable
+  user, finds the nearest other discoverable person inside their own
+  discovery radius who shares a skill or interest and isn't already
+  connected, pending, or blocked, and sends one `NetworkingSuggestion`. A
+  7-day dedupe window (checked against the `notifications` table) keeps the
+  same pair from being re-suggested on every run. This is one nearby query
+  per discoverable user — fine at MVP scale, and the first thing to batch
+  (e.g. by geohash) if the discoverable population gets very large.
+
+Testing either path needs neither a live scheduler nor real Google
+credentials: `FcmPushNotifierTest` fakes the HTTP client and stubs
+`GoogleAccessTokenProvider`, and `ScheduledNotificationsTest` invokes the
+commands directly via `$this->artisan(...)`.
+
+---
+
 ## Not implemented in this pass
 
 These are deliberate scope boundaries, not oversights. Each one is stubbed behind
 config or an interface so it can be filled in without touching call sites.
-
-**Real push notification delivery (FCM).** Notifications are written to the
-database and exposed through `/api/notifications`, and every one of them also
-calls `App\Contracts\PushNotifier`. The bound implementation is
-`NullPushNotifier`, which logs and returns. Wiring FCM means writing an
-`FcmPushNotifier`, binding it in `AppServiceProvider`, and adding device-token
-storage — no notification class changes. Device token registration is also not
-built yet.
 
 **Payment gateway integration (Stripe / Paystack).** `plans`, `subscriptions` and
 `payments` are modelled and seeded, and `App\Contracts\PaymentGateway` defines the
@@ -244,7 +311,7 @@ CDN configuration or signed-URL handling are set up here.
 **Also out of scope:** email verification and password reset flows, social login
 exchange for Google/Apple (the `auth_provider` column exists but no token
 exchange endpoint does), rate limiting beyond Laravel's defaults, real-time
-messaging between connections, event invitations as an endpoint (the
-`EventInvitation` notification exists but nothing dispatches it), and scheduled
-jobs for event reminders and networking suggestions (likewise — the notification
-classes exist, the scheduler entries do not).
+messaging between connections, and event invitations as an endpoint (the
+`EventInvitation` notification class exists but nothing dispatches it yet —
+unlike `EventReminder` and `NetworkingSuggestion`, which are now on the
+scheduler; see *Push notifications* above).

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Admin\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ConnectionController;
 use App\Http\Controllers\Api\ConnectionRequestController;
+use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\NearbyController;
 use App\Http\Controllers\Api\NotificationController;
@@ -99,6 +100,12 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('notifications', [NotificationController::class, 'index']);
     Route::put('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     Route::put('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+
+    // --------------------------------------------------------------- devices
+    // Registers this install for FCM push. See config/mingle.php and the
+    // README for turning real delivery on.
+    Route::post('devices', [DeviceController::class, 'store']);
+    Route::post('devices/unregister', [DeviceController::class, 'destroy']);
 
     // ----------------------------------------------------------------- account
     Route::delete('account', [AccountController::class, 'destroy']);

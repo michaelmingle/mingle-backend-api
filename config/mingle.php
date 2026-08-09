@@ -43,12 +43,21 @@ return [
     |---------------------------------------------------------------------------
     | Push notifications
     |---------------------------------------------------------------------------
-    | Delivery is stubbed behind App\Contracts\PushNotifier. Enabling this without
-    | a real driver binding is a no-op by design.
+    | Delivery is stubbed behind App\Contracts\PushNotifier. AppServiceProvider
+    | only binds the real FcmPushNotifier when `enabled` is true AND a project id
+    | AND credentials are present; anything short of that falls back to the
+    | no-op NullPushNotifier, so half-configuring this is always safe.
+    |
+    | Uses the FCM HTTP v1 API (a Firebase service account), not the deprecated
+    | legacy server-key API. Provide credentials either as a path to the service
+    | account JSON file, or as the raw JSON in an env var (handy on platforms
+    | without persistent disk) -- credentials_json wins if both are set.
     */
     'push' => [
         'enabled' => env('FCM_ENABLED', false),
-        'server_key' => env('FCM_SERVER_KEY'),
+        'project_id' => env('FCM_PROJECT_ID'),
+        'credentials_path' => env('FCM_CREDENTIALS_PATH', storage_path('app/firebase-service-account.json')),
+        'credentials_json' => env('FCM_CREDENTIALS_JSON'),
     ],
 
     /*

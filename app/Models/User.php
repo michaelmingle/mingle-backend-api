@@ -158,6 +158,11 @@ class User extends Authenticatable
         return $this->hasMany(QrToken::class);
     }
 
+    public function deviceTokens(): HasMany
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
+
     /** All accepted connections this user is part of (either side of the pair). */
     public function connections(): Builder
     {

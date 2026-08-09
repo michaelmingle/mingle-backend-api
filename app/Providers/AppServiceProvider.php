@@ -13,6 +13,7 @@ use App\Policies\EventPolicy;
 use App\Policies\ReportPolicy;
 use App\Policies\UserPolicy;
 use App\Services\Payments\ManualPaymentGateway;
+use App\Services\Push\FcmPushNotifier;
 use App\Services\Push\NullPushNotifier;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -29,8 +30,19 @@ class AppServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        // Both bindings are deliberate no-op / local-only defaults; see README.
-        $this->app->bind(PushNotifier::class, NullPushNotifier::class);
+        // FCM is only bound once it's enabled AND fully configured; anything
+        // short of that -- disabled, no project id, no credentials -- keeps the
+        // no-op default so half-configuring this can never throw mid-request.
+        $this->app->bind(PushNotifier::class, function ($app) {
+            $push = config('mingle.push');
+
+            $configured = ($push['enabled'] ?? false)
+                && filled($push['project_id'] ?? null)
+                && (filled($push['credentials_json'] ?? null) || filled($push['credentials_path'] ?? null));
+
+            return $configured ? $app->make(FcmPushNotifier::class) : $app->make(NullPushNotifier::class);
+        });
+
         $this->app->bind(PaymentGateway::class, ManualPaymentGateway::class);
     }
 
