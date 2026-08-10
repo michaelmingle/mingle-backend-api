@@ -27,6 +27,7 @@ class User extends Authenticatable
         'phone',
         'password',
         'auth_provider',
+        'provider_id',
         'is_admin',
         'is_verified',
         'is_premium',

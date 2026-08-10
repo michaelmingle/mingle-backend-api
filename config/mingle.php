@@ -62,6 +62,27 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | Social sign-in
+    |---------------------------------------------------------------------------
+    | POST /api/auth/google and /api/auth/apple verify a client-obtained ID
+    | token's signature against the provider's own published JWKS, then check
+    | issuer, audience and expiry -- see GoogleIdTokenVerifier /
+    | AppleIdentityTokenVerifier. The audience check fails closed: an empty
+    | list here means no token can ever match, so each provider is simply
+    | rejected until its client id(s) are configured, rather than silently
+    | accepting a token meant for a different app.
+    |
+    | Comma-separated because a mobile app typically registers more than one
+    | OAuth client id (iOS, Android, and a web/server client for Google;
+    | native bundle id and a Services id for Apple's web flow).
+    */
+    'social' => [
+        'google_client_ids' => array_filter(explode(',', (string) env('GOOGLE_CLIENT_IDS', ''))),
+        'apple_client_ids' => array_filter(explode(',', (string) env('APPLE_CLIENT_IDS', ''))),
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | Payments
     |---------------------------------------------------------------------------
     | Gateway integration is stubbed behind App\Contracts\PaymentGateway.

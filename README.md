@@ -65,6 +65,7 @@ Beyond the standard Laravel keys, `config/mingle.php` reads:
 | `MINGLE_MAX_DISCOVERY_RADIUS` | Hard cap a client may request |
 | `MINGLE_QR_DEEP_LINK_BASE` | Prefix for personal QR deep links |
 | `FCM_ENABLED` / `FCM_PROJECT_ID` / `FCM_CREDENTIALS_PATH` / `FCM_CREDENTIALS_JSON` | Push config — see *Push notifications* below |
+| `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS` | Social sign-in config — see *Social sign-in* below |
 | `PAYMENTS_DRIVER` | Payment config — see *Not implemented* below |
 
 ## Tests
@@ -79,7 +80,7 @@ production configuration is unaffected. All migrations are written to be portabl
 between the two — no MySQL-only column types, and the haversine SQL uses only
 `sin`/`cos`/`asin`/`sqrt`, which both engines provide.
 
-105 feature and unit tests cover registration and login, profile updates and the
+118 feature and unit tests cover registration and login, profile updates and the
 completion percentage, the discoverability toggle, nearby inclusion/exclusion
 rules (radius, discoverability flag, blocks, suspended accounts), the
 request → accept → connections-list flow, event creation/join/attendee lists and
@@ -87,7 +88,10 @@ their `is_networking_enabled` gate, block-prevents-connect, QR issue/rotate/scan
 search, notifications, the admin surface, device registration, the FCM driver
 (against a faked HTTP client and a stubbed token provider, so no real Google
 credentials or network access are needed to run the suite), the
-enabled+configured push binding logic, and the two scheduled commands.
+enabled+configured push binding logic, the two scheduled commands, and Google/
+Apple sign-in (against a locally-generated RSA keypair standing in for the
+provider's real signing key, with the JWKS endpoint faked via `Http::fake` --
+no real Google/Apple credentials or network access needed).
 
 ---
 
@@ -112,11 +116,13 @@ Failures keep the same shape and add `errors` for validation:
 
 ## Endpoints
 
-All routes are prefixed `/api`. Everything except register and login requires
-`auth:sanctum`; the `active` middleware additionally rejects suspended and
-banned accounts that still hold a valid token.
+All routes are prefixed `/api`. Everything except register, login, and the two
+social sign-in endpoints requires `auth:sanctum`; the `active` middleware
+additionally rejects suspended and banned accounts that still hold a valid
+token.
 
-**Auth** — `POST auth/register`, `POST auth/login`, `POST auth/logout`, `GET auth/me`
+**Auth** — `POST auth/register`, `POST auth/login`, `POST auth/google`,
+`POST auth/apple`, `POST auth/logout`, `GET auth/me`
 
 **Profile** — `GET|PUT profile`, `POST profile/photo`, `GET profile/completion`,
 `PUT profile/skills`, `PUT profile/interests`, `PUT profile/privacy`,
@@ -279,6 +285,59 @@ commands directly via `$this->artisan(...)`.
 
 ---
 
+## Social sign-in
+
+`POST /api/auth/google {id_token}` and `POST /api/auth/apple {identity_token,
+name?}` exchange a client-obtained provider token for a Mingle session, same
+response shape as `/auth/login`. Both are public routes — there's no chicken-
+and-egg bearer token needed to sign in.
+
+**Verification, not trust.** `GoogleIdTokenVerifier` / `AppleIdentityTokenVerifier`
+fetch the provider's own published JWKS (`JwksClient`, cached 12h) and use
+`firebase/php-jwt` to check the token's signature, issuer, audience, and
+expiry — the claims are never read until the signature has checked out.
+The audience check **fails closed**: `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS`
+are comma-separated allow-lists, and an empty list matches nothing, so each
+provider is simply rejected until it's configured, rather than silently
+accepting a token meant for a different app. A mobile app typically has more
+than one OAuth client id (iOS, Android, and a web/server client for Google;
+a native bundle id and a Services id for Apple's web flow) — that's why these
+are lists, not single values.
+
+**Find-or-create-or-link**, in `SocialAuthService`:
+1. Match by `(auth_provider, provider_id)` — the provider's stable `sub`
+   claim, not email, so a later email change on the provider's side can't
+   orphan the account and Apple's private-relay email is a non-issue.
+2. Failing that, match by email — a user who originally registered with
+   email/password signing in with Google/Apple for the first time gets
+   *linked*: their row's `auth_provider`/`provider_id` are overwritten.
+   Mingle models one auth method per account, not several linked providers,
+   so from that point on they sign in with the social provider, not the old
+   password (which nothing deletes, but nothing surfaces either).
+3. Failing both, a new account is created. `users.email` is required at the
+   schema level; a token that genuinely carries no email (the client didn't
+   request the scope) is rejected with a clear message rather than a raw DB
+   constraint error.
+
+**Apple's name quirk.** Apple hands the user's display name to the client
+exactly once, on the very first native authorization — never inside the
+identity token itself, and never again on subsequent sign-ins. The client
+passes it as `name` on that first call; `SocialAuthService` only ever applies
+it when *creating* an account, so a same-device replay of an old cached name
+can't overwrite a user's later profile edit.
+
+**Suspended/banned accounts** are rejected the same way `/auth/login` rejects
+them, whether the match was by provider id or freshly linked by email.
+
+Testing needs no real Google/Apple credentials or network access:
+`SocialAuthTest` generates a throwaway RSA keypair per test, signs tokens
+with it via `firebase/php-jwt`, and fakes the provider's JWKS endpoint
+(`Http::fake`) to serve that keypair's public half — exercising the exact
+signature-verification code path, just against a key nobody but the test
+controls.
+
+---
+
 ## Not implemented in this pass
 
 These are deliberate scope boundaries, not oversights. Each one is stubbed behind
@@ -308,10 +367,11 @@ which defaults to the local `public` disk. Switching to S3 is a matter of
 configuring the `s3` disk and setting `MINGLE_UPLOAD_DISK=s3`; no credentials,
 CDN configuration or signed-URL handling are set up here.
 
-**Also out of scope:** email verification and password reset flows, social login
-exchange for Google/Apple (the `auth_provider` column exists but no token
-exchange endpoint does), rate limiting beyond Laravel's defaults, real-time
-messaging between connections, and event invitations as an endpoint (the
-`EventInvitation` notification class exists but nothing dispatches it yet —
-unlike `EventReminder` and `NetworkingSuggestion`, which are now on the
-scheduler; see *Push notifications* above).
+**Also out of scope:** email verification and password reset flows (a social
+sign-in account's email is trusted from the provider's `email_verified`
+claim, but there's no verification flow for an email/password account),
+rate limiting beyond Laravel's defaults, real-time messaging between
+connections, and event invitations as an endpoint (the `EventInvitation`
+notification class exists but nothing dispatches it yet — unlike
+`EventReminder` and `NetworkingSuggestion`, which are now on the scheduler;
+see *Push notifications* above).

@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\QrController;
 use App\Http\Controllers\Api\ReferenceDataController;
 use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\SocialAuthController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,6 +27,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('auth/register', [AuthController::class, 'register']);
 Route::post('auth/login', [AuthController::class, 'login']);
+Route::post('auth/google', [SocialAuthController::class, 'google']);
+Route::post('auth/apple', [SocialAuthController::class, 'apple']);
 
 /*
 |--------------------------------------------------------------------------
